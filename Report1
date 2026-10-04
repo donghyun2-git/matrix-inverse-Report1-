@@ -1,1 +1,448 @@
+#include <cmath>
+#include <iomanip>
+#include <iostream>
+#include <stdexcept>
+#include <utility>
+#include <vector>
+
+using namespace std;
+
+class Item
+{
+public:
+    int row;
+    int col;
+    double value;
+
+    Item(int row, int col, double value)
+    {
+        this->row = row;
+        this->col = col;
+        this->value = value;
+    }
+};
+
+class MatrixSparse
+{
+private:
+    int row;
+    int col;
+    vector<Item> items;
+
+public:
+    MatrixSparse(int row, int col, vector<Item> items)
+    {
+        this->row = row;
+        this->col = col;
+        this->items = items;
+    }
+
+    void print()
+    {
+        int count = 0;
+
+        for (Item item : items)
+        {
+            cout << ++count << ": (" << item.row + 1 << ", " << item.col + 1 << ", " << item.value << ")" << endl;
+        }
+    }
+};
+
+class Matrix
+{
+private:
+    double** arr;
+    int size;
+
+public:
+    Matrix(int n) : size(n)
+    {
+        arr = new double* [size];
+        for (int i = 0; i < size; i++)
+        {
+            arr[i] = new double[size] {};
+        }
+    }
+
+    Matrix(const Matrix& matrix) : size(matrix.size)
+    {
+        arr = new double* [size];
+        for (int i = 0; i < size; i++)
+        {
+            arr[i] = new double[size];
+            for (int j = 0; j < size; j++)
+            {
+                arr[i][j] = matrix.arr[i][j];
+            }
+        }
+    }
+
+    Matrix& operator=(const Matrix& matrix)
+    {
+        if (this == &matrix)
+        {
+            return *this;
+        }
+
+        for (int i = 0; i < size; i++)
+        {
+            delete[] arr[i];
+        }
+        delete[] arr;
+
+        size = matrix.size;
+        arr = new double* [size];
+        for (int i = 0; i < size; i++)
+        {
+            arr[i] = new double[size];
+            for (int j = 0; j < size; j++)
+            {
+                arr[i][j] = matrix.arr[i][j];
+            }
+        }
+
+        return *this;
+    }
+
+    ~Matrix()
+    {
+        for (int i = 0; i < size; i++)
+        {
+            delete[] arr[i];
+        }
+        delete[] arr;
+    }
+
+    void inputMatrix()
+    {
+        for (int row = 0; row < size; row++)
+        {
+            for (int column = 0; column < size; column++)
+            {
+                cin >> arr[row][column];
+            }
+        }
+    }
+
+    void printMatrix()
+    {
+        cout << fixed << setprecision(6);
+        for (int row = 0; row < size; row++)
+        {
+            for (int column = 0; column < size; column++)
+            {
+                cout << setw(12) << arr[row][column];
+            }
+            cout << '\n';
+        }
+    }
+
+    // 행렬식 계산
+    double getMatrixDeterminant()
+    {
+        if (size == 0)
+        {
+            return 1.0;
+        }
+        if (size == 1)
+        {
+            return arr[0][0];
+        }
+        if (size == 2)
+        {
+            return arr[0][0] * arr[1][1] - arr[0][1] * arr[1][0];
+        }
+
+        double determinant = 0.0;
+        for (int column = 0; column < size; column++)
+        {
+            Matrix minorMatrix = getMatrixMinor(this, 0, column);
+            determinant += (column % 2 == 0 ? 1.0 : -1.0) *
+                arr[0][column] * minorMatrix.getMatrixDeterminant();
+        }
+
+        return determinant;
+    }
+
+    // 소행렬 계산
+    Matrix getMatrixMinor(Matrix* matrix, int row, int column)
+    {
+        Matrix newMatrix(size - 1);
+        int newRow = 0;
+
+        for (int i = 0; i < size; i++)
+        {
+            if (i == row)
+            {
+                continue;
+            }
+
+            int newColumn = 0;
+            for (int j = 0; j < size; j++)
+            {
+                if (j == column)
+                {
+                    continue;
+                }
+
+                newMatrix.arr[newRow][newColumn] = matrix->arr[i][j];
+                newColumn++;
+            }
+            newRow++;
+        }
+
+        return newMatrix;
+    }
+
+    // 역행렬 존재 여부 계산
+    bool has_inverse()
+    {
+        double determinant = getMatrixDeterminant();
+
+        return abs(determinant) > 1e-10;
+    }
+
+    // 여인수 행렬 계산
+    Matrix getCofactorMatrix()
+    {
+        Matrix cofactorMatrix(size);
+
+        for (int row = 0; row < size; row++)
+        {
+            for (int column = 0; column < size; column++)
+            {
+                Matrix minorMatrix = getMatrixMinor(this, row, column);
+                double cofactor = ((row + column) % 2 == 0 ? 1.0 : -1.0) *
+                    minorMatrix.getMatrixDeterminant();
+                cofactorMatrix.arr[row][column] = cofactor;
+            }
+        }
+
+        return cofactorMatrix;
+    }
+
+    // 전치 행렬 계산
+    Matrix transposeMatrix()
+    {
+        Matrix transposedMatrix(size);
+
+        for (int row = 0; row < size; row++)
+        {
+            for (int column = 0; column < size; column++)
+            {
+                transposedMatrix.arr[column][row] = arr[row][column];
+            }
+        }
+
+        return transposedMatrix;
+    }
+
+    // 행렬식과 여인수 행렬을 이용한 역행렬 계산
+    Matrix getInverseMatrixByDeterminant()
+    {
+        double determinant = getMatrixDeterminant();
+        if (abs(determinant) < 1e-10)
+        {
+            throw runtime_error("행렬식이 0이므로 역행렬이 존재하지 않습니다.");
+        }
+
+        Matrix cofactorMatrix = getCofactorMatrix();
+        Matrix transposedMatrix = cofactorMatrix.transposeMatrix();
+        Matrix inverseMatrix(size);
+
+        for (int row = 0; row < size; row++)
+        {
+            for (int column = 0; column < size; column++)
+            {
+                inverseMatrix.arr[row][column] = transposedMatrix.arr[row][column] / determinant;
+            }
+        }
+
+        return inverseMatrix;
+    }
+
+	//가우스-조던 소거법을 이용한 역행렬 계산
+    Matrix gaussJordanElimination()
+    {
+        if (has_inverse() == false)
+        {
+            throw runtime_error("행렬식이 0이므로 역행렬이 존재하지 않습니다.");
+		}
+
+        double** augmentedMatrix = new double* [size];
+        for (int i = 0; i < size; i++)
+        {
+            augmentedMatrix[i] = new double[size * 2] {};
+            for (int j = 0; j < size; j++)
+            {
+                augmentedMatrix[i][j] = arr[i][j];
+                augmentedMatrix[i][j + size] = (i == j) ? 1.0 : 0.0;
+            }
+        }
+
+        for (int i = 0; i < size; i++)
+        {
+            int pivotRow = i;
+            for (int j = i + 1; j < size; j++)
+            {
+                if (abs(augmentedMatrix[j][i]) > abs(augmentedMatrix[pivotRow][i]))
+                {
+                    pivotRow = j;
+                }
+            }
+
+            if (abs(augmentedMatrix[pivotRow][i]) < 1e-10)
+            {
+                for (int j = 0; j < size; j++)
+                {
+                    delete[] augmentedMatrix[j];
+                }
+                delete[] augmentedMatrix;
+                throw runtime_error("피벗이 0이므로 역행렬이 존재하지 않습니다.");
+            }
+
+
+            if (pivotRow != i)
+            {
+                swap(augmentedMatrix[i], augmentedMatrix[pivotRow]);
+            }
+
+            double factor = augmentedMatrix[i][i];
+            for (int k = 0; k < size * 2; k++)
+            {
+                augmentedMatrix[i][k] /= factor;
+            }
+
+            for (int j = 0; j < size; j++)
+            {
+                if (j == i)
+                {
+                    continue;
+                }
+
+                factor = augmentedMatrix[j][i];
+                for (int k = 0; k < size * 2; k++)
+                {
+                    augmentedMatrix[j][k] -= factor * augmentedMatrix[i][k];
+                }
+            }
+        }
+
+        Matrix inverseMatrix(size);
+        for (int i = 0; i < size; i++)
+        {
+            for (int j = 0; j < size; j++)
+            {
+                inverseMatrix.arr[i][j] = augmentedMatrix[i][j + size];
+            }
+            delete[] augmentedMatrix[i];
+        }
+        delete[] augmentedMatrix;
+
+        return inverseMatrix;
+    }
+
+    bool isSameMatrix(Matrix& matrix)
+    {
+        for (int row = 0; row < size; row++)
+        {
+            for (int column = 0; column < size; column++)
+            {
+                if (abs(arr[row][column] - matrix.arr[row][column]) > 1e-9)
+                {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    MatrixSparse buildSparse()
+    {
+        vector<Item> items;
+
+        for (int row = 0; row < size; row++)
+        {
+            for (int col = 0; col < size; col++)
+            {
+                if (arr[row][col] != 0)
+                    items.push_back(Item(row, col, arr[row][col]));
+            }
+        }
+
+        return MatrixSparse(size, size, items);
+    }
+};
+
+int main()
+{
+    int n;
+    cout << "행렬의 크기 n을 입력하세요: ";
+    cin >> n;
+
+    if (n <= 0)
+    {
+        cout << "오류: n은 1 이상의 정수여야 합니다.\n";
+        return 1;
+    }
+
+    Matrix matrix(n);
+    cout << n << " x " << n << " 행렬의 원소를 행 단위로 입력하세요:\n";
+    matrix.inputMatrix();
+
+    cout << "\n입력 행렬:\n";
+    matrix.printMatrix();
+
+    Matrix determinantInverse(n);
+    Matrix gaussJordanInverse(n);
+    bool determinantSuccess = false;
+    bool gaussJordanSuccess = false;
+
+    try
+    {
+        determinantInverse = matrix.getInverseMatrixByDeterminant();
+        determinantSuccess = true;
+        cout << "\n행렬식을 이용한 역행렬:\n";
+        determinantInverse.printMatrix();
+    }
+    catch (const runtime_error& error)
+    {
+        cout << "\n행렬식 방법 오류: " << error.what() << '\n';
+    }
+
+    try
+    {
+        gaussJordanInverse = matrix.gaussJordanElimination();
+        gaussJordanSuccess = true;
+        cout << "\n가우스-조던 소거법을 이용한 역행렬:\n";
+        gaussJordanInverse.printMatrix();
+    }
+    catch (const runtime_error& error)
+    {
+        cout << "\n가우스-조던 방법 오류: " << error.what() << '\n';
+    }
+
+    if (determinantSuccess && gaussJordanSuccess)
+    {
+        if (determinantInverse.isSameMatrix(gaussJordanInverse))
+        {
+            cout << "\n결과: 두 방법으로 구한 역행렬은 동일합니다.\n";
+        }
+        else
+        {
+            cout << "\n결과: 두 방법으로 구한 역행렬이 다릅니다.\n";
+        }
+    }
+    else
+    {
+        cout << "\n결과: 역행렬이 존재하지 않습니다.\n";
+    }
+
+    MatrixSparse sparse = matrix.buildSparse();
+    cout << "\n희소 행렬:\n";
+    sparse.print();
+
+    return 0;
+}
 
